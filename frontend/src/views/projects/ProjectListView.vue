@@ -9,20 +9,27 @@
       <NButton type="primary">新建项目</NButton>
     </div>
 
+    <NAlert v-if="errorMessage" type="error" :title="errorMessage" />
+
     <NCard :bordered="false">
-      <NDataTable :columns="columns" :data="projects" :pagination="false" />
+      <NDataTable :columns="columns" :data="projects" :loading="loading" :pagination="false" />
     </NCard>
   </section>
 </template>
 
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
-import { NButton, NCard, NDataTable, NTag } from 'naive-ui'
-import { h } from 'vue'
+import { NAlert, NButton, NCard, NDataTable, NTag } from 'naive-ui'
+import { h, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { projects } from '@/mocks/workspace'
+import { normalizeApiError } from '@/api/client'
+import { listProjectsApi } from '@/api/workspace'
 import type { Project } from '@/types/domain'
+
+const projects = ref<Project[]>([])
+const loading = ref(false)
+const errorMessage = ref('')
 
 const columns: DataTableColumns<Project> = [
   {
@@ -39,4 +46,19 @@ const columns: DataTableColumns<Project> = [
   },
   { title: '更新时间', key: 'updatedAt' },
 ]
+
+async function loadProjects() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    projects.value = await listProjectsApi()
+  } catch (error) {
+    errorMessage.value = normalizeApiError(error).message
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadProjects)
 </script>

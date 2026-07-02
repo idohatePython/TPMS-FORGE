@@ -8,19 +8,26 @@
       </div>
     </div>
 
+    <NAlert v-if="errorMessage" type="error" :title="errorMessage" />
+
     <NCard :bordered="false">
-      <NDataTable :columns="columns" :data="tasks" :pagination="false" />
+      <NDataTable :columns="columns" :data="tasks" :loading="loading" :pagination="false" />
     </NCard>
   </section>
 </template>
 
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
-import { NCard, NDataTable, NProgress, NTag } from 'naive-ui'
-import { h } from 'vue'
+import { NAlert, NCard, NDataTable, NProgress, NTag } from 'naive-ui'
+import { h, onMounted, ref } from 'vue'
 
-import { tasks } from '@/mocks/workspace'
+import { normalizeApiError } from '@/api/client'
+import { listAdminTasksApi } from '@/api/workspace'
 import type { ForgeTask } from '@/types/domain'
+
+const tasks = ref<ForgeTask[]>([])
+const loading = ref(false)
+const errorMessage = ref('')
 
 const columns: DataTableColumns<ForgeTask> = [
   { title: '任务', key: 'name' },
@@ -33,4 +40,19 @@ const columns: DataTableColumns<ForgeTask> = [
   },
   { title: '进度', key: 'progress', render: (row) => h(NProgress, { percentage: row.progress, showIndicator: false }) },
 ]
+
+async function loadTasks() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    tasks.value = await listAdminTasksApi()
+  } catch (error) {
+    errorMessage.value = normalizeApiError(error).message
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadTasks)
 </script>

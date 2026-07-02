@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { loginApi } from '@/api/auth'
+import { clearAuthToken, loadAuthToken, saveAuthToken } from '@/api/client'
+
 export type UserRole = 'user' | 'admin'
 
 export interface AuthUser {
@@ -28,26 +31,35 @@ function loadSavedUser(): AuthUser | null {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(loadSavedUser())
-  const token = ref(user.value ? 'mock-token' : '')
+  const token = ref(loadAuthToken())
+  const loading = ref(false)
 
   const isAuthenticated = computed(() => Boolean(user.value && token.value))
   const role = computed<UserRole>(() => user.value?.role ?? 'user')
 
-  function login(username: string, selectedRole: UserRole = 'user') {
-    const nextUser: AuthUser = {
-      id: selectedRole === 'admin' ? 'admin-001' : 'user-001',
-      username: username.trim() || (selectedRole === 'admin' ? 'admin' : 'researcher'),
-      role: selectedRole,
-    }
+  async function login(username: string, password: string, selectedRole: UserRole = 'user') {
+    loading.value = true
 
-    user.value = nextUser
-    token.value = 'mock-token'
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser))
+    try {
+      const response = await loginApi(
+        username.trim() || (selectedRole === 'admin' ? 'admin' : 'researcher'),
+        password,
+        selectedRole,
+      )
+
+      user.value = response.user
+      token.value = response.accessToken
+      saveAuthToken(response.accessToken)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(response.user))
+    } finally {
+      loading.value = false
+    }
   }
 
   function logout() {
     user.value = null
     token.value = ''
+    clearAuthToken()
     localStorage.removeItem(STORAGE_KEY)
   }
 
@@ -55,6 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     token,
     role,
+    loading,
     isAuthenticated,
     login,
     logout,

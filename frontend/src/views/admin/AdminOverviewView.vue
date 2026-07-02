@@ -8,16 +8,35 @@
       </div>
     </div>
 
+    <NAlert v-if="errorMessage" type="error" :title="errorMessage" />
+
     <div class="grid-3">
-      <NCard title="用户" :bordered="false"><NStatistic :value="12" /></NCard>
-      <NCard title="项目" :bordered="false"><NStatistic :value="dashboardStats.projects" /></NCard>
-      <NCard title="任务" :bordered="false"><NStatistic :value="tasks.length" /></NCard>
+      <NCard title="用户" :bordered="false"><NStatistic :value="summary.users" /></NCard>
+      <NCard title="项目" :bordered="false"><NStatistic :value="summary.projects" /></NCard>
+      <NCard title="任务" :bordered="false"><NStatistic :value="summary.tasks" /></NCard>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { NCard, NStatistic } from 'naive-ui'
+import { onMounted, ref } from 'vue'
+import { NAlert, NCard, NStatistic } from 'naive-ui'
 
-import { dashboardStats, tasks } from '@/mocks/workspace'
+import { normalizeApiError } from '@/api/client'
+import { getAdminSummaryApi, type AdminSummary } from '@/api/workspace'
+
+const summary = ref<AdminSummary>({ users: 0, projects: 0, tasks: 0 })
+const errorMessage = ref('')
+
+async function loadSummary() {
+  errorMessage.value = ''
+
+  try {
+    summary.value = await getAdminSummaryApi()
+  } catch (error) {
+    errorMessage.value = normalizeApiError(error).message
+  }
+}
+
+onMounted(loadSummary)
 </script>

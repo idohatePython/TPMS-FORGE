@@ -45,3 +45,10 @@ class AdminSummaryRead(BaseModel):
     users: int
     projects: int
     tasks: int
+
+
+class AdminUserRead(BaseModel):
+    username: str
+    role: str
+    status: str
+    last_active: str

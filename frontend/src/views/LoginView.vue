@@ -7,7 +7,7 @@
             <NInput v-model:value="username" placeholder="researcher" />
           </NFormItem>
           <NFormItem label="密码">
-            <NInput v-model:value="password" type="password" placeholder="当前为前端占位登录" />
+            <NInput v-model:value="password" type="password" placeholder="开发期可输入任意密码" />
           </NFormItem>
           <NFormItem label="角色">
             <NRadioGroup v-model:value="role">
@@ -16,7 +16,8 @@
               </NRadioButton>
             </NRadioGroup>
           </NFormItem>
-          <NButton type="primary" block attr-type="submit">进入工作台</NButton>
+          <NAlert v-if="errorMessage" type="error" :title="errorMessage" style="margin-bottom: 16px" />
+          <NButton type="primary" block attr-type="submit" :loading="auth.loading">进入工作台</NButton>
         </NForm>
       </NCard>
     </div>
@@ -25,10 +26,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NButton, NCard, NForm, NFormItem, NInput, NRadioButton, NRadioGroup } from 'naive-ui'
+import { NAlert, NButton, NCard, NForm, NFormItem, NInput, NRadioButton, NRadioGroup } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore, type UserRole } from '@/stores/auth'
+import { normalizeApiError } from '@/api/client'
 
 const router = useRouter()
 const route = useRoute()
@@ -37,14 +39,21 @@ const auth = useAuthStore()
 const username = ref('researcher')
 const password = ref('')
 const role = ref<UserRole>('user')
+const errorMessage = ref('')
 const roleOptions = [
   { label: '用户', value: 'user' },
   { label: '管理员', value: 'admin' },
 ]
 
-function submit() {
-  auth.login(username.value, role.value)
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
-  router.push(redirect)
+async function submit() {
+  errorMessage.value = ''
+
+  try {
+    await auth.login(username.value, password.value, role.value)
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
+    router.push(redirect)
+  } catch (error) {
+    errorMessage.value = normalizeApiError(error).message
+  }
 }
 </script>

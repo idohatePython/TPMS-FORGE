@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 
-from backend.app.modules.admin.router import read_admin_summary
+from backend.app.modules.admin.router import list_admin_users, read_admin_summary
 from backend.app.modules.auth.dependencies import get_current_user
 from backend.app.modules.auth.router import login, read_me
 from backend.app.modules.files.router import upload_project_file
@@ -60,8 +60,10 @@ def test_read_task_endpoints() -> None:
 
 def test_admin_endpoint_requires_admin_role() -> None:
     response = read_admin_summary(make_user("admin"))
+    users = list_admin_users(make_user("admin"))
 
     assert response.projects >= 1
+    assert users[0].username == "machuang"
 
 
 def test_upload_accepts_stl_and_rejects_unknown_project() -> None:
