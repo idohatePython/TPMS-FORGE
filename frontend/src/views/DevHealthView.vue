@@ -1,38 +1,51 @@
+<template>
+  <main class="section">
+    <div class="section-inner page">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">DEV HEALTH</p>
+          <h1>开发环境健康检查</h1>
+          <p>用于验证前端到后端 `/health` 接口的连通性。</p>
+        </div>
+        <NButton type="primary" :loading="loading" @click="loadHealth">刷新</NButton>
+      </div>
+
+      <NCard :bordered="false">
+        <NDescriptions v-if="health" :column="1">
+          <NDescriptionsItem label="Status">{{ health.status }}</NDescriptionsItem>
+          <NDescriptionsItem label="Service">{{ health.service }}</NDescriptionsItem>
+        </NDescriptions>
+        <NAlert v-else-if="error" type="error" :title="error.message" />
+        <NEmpty v-else description="尚未获取健康检查结果" />
+      </NCard>
+    </div>
+  </main>
+</template>
+
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NEmpty } from 'naive-ui'
 
+import { normalizeApiError, type ApiError } from '@/api/client'
 import { getHealth, type HealthResponse } from '@/api/system'
 
-const loading = ref(false)
 const health = ref<HealthResponse | null>(null)
-const error = ref('')
+const error = ref<ApiError | null>(null)
+const loading = ref(false)
 
-async function checkHealth() {
+async function loadHealth() {
   loading.value = true
-  error.value = ''
+  error.value = null
 
   try {
     health.value = await getHealth()
-  } catch (err) {
+  } catch (caught) {
     health.value = null
-    error.value = err instanceof Error ? err.message : '无法连接后端服务'
+    error.value = normalizeApiError(caught)
   } finally {
     loading.value = false
   }
 }
 
-onMounted(checkHealth)
+onMounted(loadHealth)
 </script>
-
-<template>
-  <section class="panel">
-    <div class="panel-heading">
-      <h2>后端健康检查</h2>
-      <button type="button" @click="checkHealth">刷新</button>
-    </div>
-
-    <p v-if="loading">正在检查...</p>
-    <p v-else-if="health" class="success">后端可用：{{ health.service }} / {{ health.status }}</p>
-    <p v-else class="error">后端服务不可用：{{ error }}</p>
-  </section>
-</template>
