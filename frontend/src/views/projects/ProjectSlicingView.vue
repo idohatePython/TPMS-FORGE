@@ -15,15 +15,56 @@
     <div class="grid-2">
       <NCard title="切片参数" :bordered="false">
         <NForm label-placement="top">
+          <div class="slicing-form-grid">
+            <NFormItem label="Filament">
+              <NSelect v-model:value="form.filamentType" :options="filamentOptions" />
+            </NFormItem>
+            <NFormItem label="Infill Pattern">
+              <NSelect v-model:value="form.sparseInfillPattern" :options="infillOptions" />
+            </NFormItem>
+          </div>
           <NFormItem label="Layer Height">
             <NInputNumber v-model:value="form.layerHeight" :min="0.05" :max="0.6" :step="0.05" />
           </NFormItem>
           <NFormItem label="Line Width">
             <NInputNumber v-model:value="form.lineWidth" :min="0.2" :max="1.2" :step="0.05" />
           </NFormItem>
+          <div class="slicing-form-grid">
+            <NFormItem label="Wall Loops">
+              <NInputNumber v-model:value="form.wallLoops" :min="1" :max="8" />
+            </NFormItem>
+            <NFormItem label="Top / Bottom Layers">
+              <NSpace>
+                <NInputNumber v-model:value="form.topShellLayers" :min="0" :max="12" />
+                <NInputNumber v-model:value="form.bottomShellLayers" :min="0" :max="12" />
+              </NSpace>
+            </NFormItem>
+          </div>
+          <NFormItem label="Sparse Infill Density">
+            <NSlider v-model:value="form.sparseInfillDensity" :min="0" :max="100" />
+          </NFormItem>
           <NFormItem label="Print Speed">
             <NSlider v-model:value="form.speed" :min="10" :max="120" />
           </NFormItem>
+          <NFormItem label="Travel Speed">
+            <NSlider v-model:value="form.travelSpeed" :min="50" :max="300" />
+          </NFormItem>
+          <div class="slicing-form-grid">
+            <NFormItem label="Nozzle Temperature">
+              <NInputNumber v-model:value="form.nozzleTemperature" :min="150" :max="320" />
+            </NFormItem>
+            <NFormItem label="Bed Temperature">
+              <NInputNumber v-model:value="form.bedTemperature" :min="0" :max="120" />
+            </NFormItem>
+          </div>
+          <div class="slicing-form-grid">
+            <NFormItem label="Support">
+              <NSwitch v-model:value="form.enableSupport" />
+            </NFormItem>
+            <NFormItem label="Brim Width">
+              <NInputNumber v-model:value="form.brimWidth" :min="0" :max="20" :step="0.5" />
+            </NFormItem>
+          </div>
         </NForm>
       </NCard>
       <NCard v-if="project" title="输出目标" :bordered="false">
@@ -42,7 +83,20 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
-import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NForm, NFormItem, NInputNumber, NSlider } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NDescriptions,
+  NDescriptionsItem,
+  NForm,
+  NFormItem,
+  NInputNumber,
+  NSelect,
+  NSlider,
+  NSpace,
+  NSwitch,
+} from 'naive-ui'
 import { useRoute } from 'vue-router'
 
 import { loadAuthToken, normalizeApiError } from '@/api/client'
@@ -56,7 +110,31 @@ const successMessage = ref('')
 const slicing = ref(false)
 const gcodeUrl = ref('')
 const gcodeFilename = ref('')
-const form = reactive({ layerHeight: 0.2, lineWidth: 0.42, speed: 60 })
+const form = reactive({
+  layerHeight: 0.2,
+  lineWidth: 0.42,
+  speed: 60,
+  travelSpeed: 150,
+  wallLoops: 2,
+  topShellLayers: 4,
+  bottomShellLayers: 3,
+  sparseInfillDensity: 15,
+  sparseInfillPattern: 'gyroid',
+  enableSupport: false,
+  supportType: 'normal(auto)',
+  brimWidth: 0,
+  nozzleTemperature: 220,
+  bedTemperature: 60,
+  filamentType: 'PLA',
+})
+
+const filamentOptions = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PA-CF'].map((value) => ({
+  label: value,
+  value,
+}))
+const infillOptions = ['gyroid', 'grid', 'honeycomb', 'cubic', 'rectilinear', 'triangles'].map(
+  (value) => ({ label: value, value }),
+)
 
 async function loadProject() {
   errorMessage.value = ''
@@ -83,6 +161,18 @@ async function createSlicingTask() {
       layerHeight: form.layerHeight,
       lineWidth: form.lineWidth,
       printSpeed: form.speed,
+      travelSpeed: form.travelSpeed,
+      wallLoops: form.wallLoops,
+      topShellLayers: form.topShellLayers,
+      bottomShellLayers: form.bottomShellLayers,
+      sparseInfillDensity: form.sparseInfillDensity,
+      sparseInfillPattern: form.sparseInfillPattern,
+      enableSupport: form.enableSupport,
+      supportType: form.supportType,
+      brimWidth: form.brimWidth,
+      nozzleTemperature: form.nozzleTemperature,
+      bedTemperature: form.bedTemperature,
+      filamentType: form.filamentType,
     })
     gcodeUrl.value = absoluteFileUrl(result.gcodeUrl)
     gcodeFilename.value = result.gcodeFilename

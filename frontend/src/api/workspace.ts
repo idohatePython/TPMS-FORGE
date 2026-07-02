@@ -176,12 +176,40 @@ export async function getLatestProjectFileApi(projectId: string) {
 
 export async function createSlicingTaskApi(
   projectId: string,
-  params: { layerHeight: number; lineWidth: number; printSpeed: number },
+  params: {
+    layerHeight: number
+    lineWidth: number
+    printSpeed: number
+    travelSpeed: number
+    wallLoops: number
+    topShellLayers: number
+    bottomShellLayers: number
+    sparseInfillDensity: number
+    sparseInfillPattern: string
+    enableSupport: boolean
+    supportType: string
+    brimWidth: number
+    nozzleTemperature: number
+    bedTemperature: number
+    filamentType: string
+  },
 ): Promise<SlicingRun> {
   const response = await apiClient.post<SlicingRunResponse>(`/projects/${projectId}/slicing-tasks`, {
     layer_height: params.layerHeight,
     line_width: params.lineWidth,
     print_speed: params.printSpeed,
+    travel_speed: params.travelSpeed,
+    wall_loops: params.wallLoops,
+    top_shell_layers: params.topShellLayers,
+    bottom_shell_layers: params.bottomShellLayers,
+    sparse_infill_density: params.sparseInfillDensity,
+    sparse_infill_pattern: params.sparseInfillPattern,
+    enable_support: params.enableSupport,
+    support_type: params.supportType,
+    brim_width: params.brimWidth,
+    nozzle_temperature: params.nozzleTemperature,
+    bed_temperature: params.bedTemperature,
+    filament_type: params.filamentType,
   })
 
   return {

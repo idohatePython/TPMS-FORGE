@@ -59,6 +59,18 @@ def create_slicing_task(
                     "layer_height": payload.layer_height,
                     "line_width": payload.line_width,
                     "print_speed": payload.print_speed,
+                    "travel_speed": payload.travel_speed,
+                    "wall_loops": payload.wall_loops,
+                    "top_shell_layers": payload.top_shell_layers,
+                    "bottom_shell_layers": payload.bottom_shell_layers,
+                    "sparse_infill_density": payload.sparse_infill_density,
+                    "sparse_infill_pattern": payload.sparse_infill_pattern,
+                    "enable_support": payload.enable_support,
+                    "support_type": payload.support_type,
+                    "brim_width": payload.brim_width,
+                    "nozzle_temperature": payload.nozzle_temperature,
+                    "bed_temperature": payload.bed_temperature,
+                    "filament_type": payload.filament_type,
                 },
             )
         )

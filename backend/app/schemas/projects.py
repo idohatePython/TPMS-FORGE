@@ -59,6 +59,18 @@ class SlicingRequest(BaseModel):
     layer_height: float = 0.2
     line_width: float = 0.42
     print_speed: int = 60
+    travel_speed: int = 150
+    wall_loops: int = 2
+    top_shell_layers: int = 4
+    bottom_shell_layers: int = 3
+    sparse_infill_density: int = 15
+    sparse_infill_pattern: str = "gyroid"
+    enable_support: bool = False
+    support_type: str = "normal(auto)"
+    brim_width: float = 0
+    nozzle_temperature: int = 220
+    bed_temperature: int = 60
+    filament_type: str = "PLA"
 
 
 class SlicingRunRead(BaseModel):

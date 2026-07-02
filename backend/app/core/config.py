@@ -22,7 +22,11 @@ class Settings(BaseSettings):
     storage_root: Path = Path("storage")
     max_upload_size_mb: int = 200
 
-    slicer_engine: str = "prusa"
+    slicer_engine: str = "orca"
+    orca_slicer_path: str = "orca-slicer"
+    orca_machine_profile: Path | None = None
+    orca_process_profile: Path | None = None
+    orca_filament_profile: Path | None = None
     prusa_slicer_path: str = "prusa-slicer"
     slicer_timeout_seconds: int = 300
 

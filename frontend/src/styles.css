@@ -238,6 +238,12 @@ a {
   width: 100%;
 }
 
+.slicing-form-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 860px) {
   .public-header {
     align-items: flex-start;
