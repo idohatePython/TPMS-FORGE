@@ -34,6 +34,13 @@ interface FileUploadResponse {
   content_type: string | null
   size_bytes: number
   status: 'accepted'
+  file_url: string
+}
+
+interface SlicingRunResponse {
+  task: TaskResponse
+  gcode_filename: string
+  gcode_url: string
 }
 
 interface AdminSummaryResponse {
@@ -68,6 +75,13 @@ export interface UploadedFile {
   contentType: string | null
   sizeBytes: number
   status: 'accepted'
+  fileUrl: string
+}
+
+export interface SlicingRun {
+  task: ForgeTask
+  gcodeFilename: string
+  gcodeUrl: string
 }
 
 function mapProject(project: ProjectResponse): Project {
@@ -110,6 +124,7 @@ function mapUploadedFile(file: FileUploadResponse): UploadedFile {
     contentType: file.content_type,
     sizeBytes: file.size_bytes,
     status: file.status,
+    fileUrl: file.file_url,
   }
 }
 
@@ -152,6 +167,28 @@ export async function uploadProjectFileApi(projectId: string, file: File) {
   })
 
   return mapUploadedFile(response.data)
+}
+
+export async function getLatestProjectFileApi(projectId: string) {
+  const response = await apiClient.get<FileUploadResponse>(`/projects/${projectId}/files/latest`)
+  return mapUploadedFile(response.data)
+}
+
+export async function createSlicingTaskApi(
+  projectId: string,
+  params: { layerHeight: number; lineWidth: number; printSpeed: number },
+): Promise<SlicingRun> {
+  const response = await apiClient.post<SlicingRunResponse>(`/projects/${projectId}/slicing-tasks`, {
+    layer_height: params.layerHeight,
+    line_width: params.lineWidth,
+    print_speed: params.printSpeed,
+  })
+
+  return {
+    task: mapTask(response.data.task),
+    gcodeFilename: response.data.gcode_filename,
+    gcodeUrl: response.data.gcode_url,
+  }
 }
 
 export async function getAdminSummaryApi(): Promise<AdminSummary> {

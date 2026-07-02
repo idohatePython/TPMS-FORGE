@@ -39,6 +39,7 @@ class FileUploadRead(BaseModel):
     content_type: str | None
     size_bytes: int
     status: Literal["accepted"]
+    file_url: str
 
 
 class AdminSummaryRead(BaseModel):
@@ -52,3 +53,15 @@ class AdminUserRead(BaseModel):
     role: str
     status: str
     last_active: str
+
+
+class SlicingRequest(BaseModel):
+    layer_height: float = 0.2
+    line_width: float = 0.42
+    print_speed: int = 60
+
+
+class SlicingRunRead(BaseModel):
+    task: TaskRead
+    gcode_filename: str
+    gcode_url: str

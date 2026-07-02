@@ -226,6 +226,18 @@ a {
   width: 100%;
 }
 
+.model-preview {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  display: flex;
+  height: 420px;
+  justify-content: center;
+  overflow: hidden;
+  width: 100%;
+}
+
 @media (max-width: 860px) {
   .public-header {
     align-items: flex-start;

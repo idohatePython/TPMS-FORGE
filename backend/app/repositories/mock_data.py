@@ -60,6 +60,9 @@ TASKS: list[TaskRead] = [
     ),
 ]
 
+PROJECT_FILES: dict[str, str] = {}
+PROJECT_GCODE_FILES: dict[str, str] = {}
+
 DASHBOARD_STATS = DashboardStatsRead(
     projects=len(PROJECTS),
     running_tasks=sum(task.status == "running" for task in TASKS),

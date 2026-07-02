@@ -1,9 +1,11 @@
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 
+from backend.app.core.config import settings
 from backend.app.modules.admin.router import list_admin_users, read_admin_summary
 from backend.app.modules.auth.dependencies import get_current_user
 from backend.app.modules.auth.router import login, read_me
@@ -66,7 +68,11 @@ def test_admin_endpoint_requires_admin_role() -> None:
     assert users[0].username == "machuang"
 
 
-def test_upload_accepts_stl_and_rejects_unknown_project() -> None:
+def test_upload_accepts_stl_and_rejects_unknown_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
     current_user = make_user()
     file = UploadFile(filename="part.stl", file=BytesIO(b"solid mock"))
 

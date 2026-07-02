@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     storage_root: Path = Path("storage")
     max_upload_size_mb: int = 200
 
+    slicer_engine: str = "prusa"
+    prusa_slicer_path: str = "prusa-slicer"
+    slicer_timeout_seconds: int = 300
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

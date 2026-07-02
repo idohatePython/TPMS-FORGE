@@ -9,6 +9,7 @@ from backend.app.modules.files.router import router as files_router
 from backend.app.modules.model_tasks.router import router as model_tasks_router
 from backend.app.modules.projects.router import dashboard_router
 from backend.app.modules.projects.router import router as projects_router
+from backend.app.modules.slicing_tasks.router import project_router as project_slicing_tasks_router
 from backend.app.modules.slicing_tasks.router import router as slicing_tasks_router
 
 
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix=settings.api_v1_prefix)
     app.include_router(files_router, prefix=settings.api_v1_prefix)
     app.include_router(model_tasks_router, prefix=settings.api_v1_prefix)
+    app.include_router(project_slicing_tasks_router, prefix=settings.api_v1_prefix)
     app.include_router(slicing_tasks_router, prefix=settings.api_v1_prefix)
     app.include_router(admin_router, prefix=settings.api_v1_prefix)
     return app

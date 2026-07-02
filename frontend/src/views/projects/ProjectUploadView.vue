@@ -35,6 +35,13 @@
         </NDescriptions>
       </NCard>
     </div>
+
+    <NCard title="模型预览" :bordered="false">
+      <ModelPreview
+        :source-url="uploadedFile ? absoluteFileUrl(uploadedFile.fileUrl) : undefined"
+        :filename="uploadedFile?.filename"
+      />
+    </NCard>
   </section>
 </template>
 
@@ -53,19 +60,31 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { normalizeApiError } from '@/api/client'
-import { getProjectApi, uploadProjectFileApi } from '@/api/workspace'
+import ModelPreview from '@/components/ModelPreview.vue'
+import { getLatestProjectFileApi, getProjectApi, uploadProjectFileApi, type UploadedFile } from '@/api/workspace'
 import type { Project } from '@/types/domain'
 
 const route = useRoute()
 const project = ref<Project | null>(null)
+const uploadedFile = ref<UploadedFile | null>(null)
 const errorMessage = ref('')
 const successMessage = ref('')
+
+function absoluteFileUrl(fileUrl: string) {
+  return `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'}${fileUrl.replace('/api/v1', '')}`
+}
 
 async function loadProject() {
   errorMessage.value = ''
 
   try {
-    project.value = await getProjectApi(String(route.params.id))
+    const projectId = String(route.params.id)
+    project.value = await getProjectApi(projectId)
+    try {
+      uploadedFile.value = await getLatestProjectFileApi(projectId)
+    } catch {
+      uploadedFile.value = null
+    }
   } catch (error) {
     project.value = null
     errorMessage.value = normalizeApiError(error).message
@@ -82,8 +101,8 @@ async function uploadFile(options: UploadCustomRequestOptions) {
       throw new Error('请选择有效文件')
     }
 
-    const uploadedFile = await uploadProjectFileApi(String(route.params.id), rawFile)
-    successMessage.value = `${uploadedFile.filename} 已被后端接收`
+    uploadedFile.value = await uploadProjectFileApi(String(route.params.id), rawFile)
+    successMessage.value = `${uploadedFile.value.filename} 已被后端接收`
     options.onFinish()
   } catch (error) {
     errorMessage.value = normalizeApiError(error).message
