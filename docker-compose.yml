@@ -1,0 +1,82 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: pnpm dev --host 0.0.0.0
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://tpms_forge:tpms_forge@postgres:5432/tpms_forge
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      STORAGE_ROOT: /app/storage
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./algorithms:/app/algorithms
+      - ./worker:/app/worker
+      - ./storage:/app/storage
+    command: uv run uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://tpms_forge:tpms_forge@postgres:5432/tpms_forge
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      STORAGE_ROOT: /app/storage
+    volumes:
+      - ./backend:/app/backend
+      - ./algorithms:/app/algorithms
+      - ./worker:/app/worker
+      - ./storage:/app/storage
+    command: uv run celery -A worker.celery_app.celery_app worker --loglevel=INFO
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tpms_forge}
+      POSTGRES_USER: ${POSTGRES_USER:-tpms_forge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tpms_forge}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+  frontend_node_modules:

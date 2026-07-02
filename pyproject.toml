@@ -1,0 +1,60 @@
+[project]
+name = "tpms-forge"
+version = "0.1.0"
+description = "TPMS structure generation, slicing, toolpath planning, and G-code export platform."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14.0",
+    "celery[redis]>=5.4.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "meshio>=5.3.5",
+    "networkx>=3.4.0",
+    "numpy>=2.2.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "psycopg[binary]>=3.2.0",
+    "python-multipart>=0.0.20",
+    "scikit-image>=0.25.0",
+    "scipy>=1.14.0",
+    "shapely>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "structlog>=24.4.0",
+    "trimesh>=4.5.0",
+    "uvicorn[standard]>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.0",
+    "pre-commit>=4.0.0",
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+    ".agents",
+    ".venv",
+    "frontend/node_modules",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+disable_error_code = ["untyped-decorator"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false

@@ -1,0 +1,32 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    app_name: str = "TPMS-FORGE"
+    app_env: str = "development"
+    debug: bool = Field(default=True, validation_alias="APP_DEBUG")
+    secret_key: str = "change-me"
+    api_v1_prefix: str = "/api/v1"
+
+    database_url: str = "postgresql+psycopg://tpms_forge:tpms_forge@localhost:5432/tpms_forge"
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/1"
+
+    storage_backend: str = "local"
+    storage_root: Path = Path("storage")
+    max_upload_size_mb: int = 200
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
