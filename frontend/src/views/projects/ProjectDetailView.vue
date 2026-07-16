@@ -10,6 +10,7 @@
       </div>
       <NSpace>
         <NButton @click="router.push(`/projects/${project.id}/upload`)">上传模型</NButton>
+        <NButton @click="router.push(`/projects/${project.id}/files`)">文件管理</NButton>
         <NButton type="primary" @click="router.push(`/projects/${project.id}/tpms`)">生成 TPMS</NButton>
       </NSpace>
     </div>

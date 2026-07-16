@@ -10,15 +10,24 @@
 import { NAlert, NEmpty, NSpin } from 'naive-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 
 import { loadAuthToken } from '@/api/client'
 
-const props = defineProps<{
-  sourceUrl?: string
-  filename?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    sourceUrl?: string
+    filename?: string
+    bedSize?: number
+  }>(),
+  {
+    sourceUrl: undefined,
+    filename: undefined,
+    bedSize: 250,
+  },
+)
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const loading = ref(false)
@@ -27,17 +36,88 @@ const errorMessage = ref('')
 let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
+let controls: OrbitControls | null = null
+let resizeObserver: ResizeObserver | null = null
 let animationFrame = 0
+
+function disposeObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.geometry.dispose()
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose())
+      } else {
+        child.material.dispose()
+      }
+    }
+  })
+}
 
 function disposeScene() {
   cancelAnimationFrame(animationFrame)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  controls?.dispose()
+  controls = null
+
+  if (scene) {
+    scene.children.forEach(disposeObject)
+  }
+
   if (renderer && containerRef.value?.contains(renderer.domElement)) {
     containerRef.value.removeChild(renderer.domElement)
   }
+
   renderer?.dispose()
   renderer = null
   scene = null
   camera = null
+}
+
+function fitObjectToBed(object: THREE.Object3D) {
+  const box = new THREE.Box3().setFromObject(object)
+  const center = box.getCenter(new THREE.Vector3())
+  const min = box.min
+  object.position.sub(new THREE.Vector3(center.x, center.y, min.z))
+}
+
+function createBed(size: number) {
+  const group = new THREE.Group()
+
+  const bed = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshStandardMaterial({
+      color: '#edf2f7',
+      metalness: 0,
+      roughness: 0.8,
+      side: THREE.DoubleSide,
+    }),
+  )
+  bed.position.z = -0.02
+  group.add(bed)
+
+  const grid = new THREE.GridHelper(size, 20, '#7c8da1', '#d7dfe9')
+  grid.rotation.x = Math.PI / 2
+  group.add(grid)
+
+  const border = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.PlaneGeometry(size, size)),
+    new THREE.LineBasicMaterial({ color: '#39556d' }),
+  )
+  group.add(border)
+
+  return group
+}
+
+function setRendererSize() {
+  const container = containerRef.value
+  if (!container || !renderer || !camera) return
+
+  const width = container.clientWidth
+  const height = container.clientHeight
+  camera.aspect = width / height
+  camera.updateProjectionMatrix()
+  renderer.setSize(width, height)
 }
 
 function buildScene(object: THREE.Object3D) {
@@ -45,35 +125,41 @@ function buildScene(object: THREE.Object3D) {
   if (!container) return
 
   disposeScene()
+  fitObjectToBed(object)
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color('#f8fafc')
-  camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000)
+  camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 2000)
+  camera.up.set(0, 0, 1)
+  camera.position.set(props.bedSize * 0.65, -props.bedSize * 0.9, props.bedSize * 0.55)
+  camera.lookAt(0, 0, props.bedSize * 0.12)
+
   renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer.setPixelRatio(window.devicePixelRatio)
   renderer.setSize(container.clientWidth, container.clientHeight)
   container.appendChild(renderer.domElement)
 
-  const box = new THREE.Box3().setFromObject(object)
-  const center = box.getCenter(new THREE.Vector3())
-  const size = box.getSize(new THREE.Vector3()).length() || 1
-  object.position.sub(center)
+  controls = new OrbitControls(camera, renderer.domElement)
+  controls.target.set(0, 0, props.bedSize * 0.12)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.08
+  controls.screenSpacePanning = false
+  controls.maxDistance = props.bedSize * 3
+  controls.update()
 
-  camera.position.set(size * 0.8, size * 0.7, size * 1.25)
-  camera.lookAt(0, 0, 0)
-
-  scene.add(new THREE.AmbientLight('#ffffff', 2.2))
-  const light = new THREE.DirectionalLight('#ffffff', 2)
-  light.position.set(4, 6, 8)
+  scene.add(createBed(props.bedSize))
+  scene.add(new THREE.AmbientLight('#ffffff', 1.9))
+  const light = new THREE.DirectionalLight('#ffffff', 2.4)
+  light.position.set(80, -120, 180)
   scene.add(light)
   scene.add(object)
 
-  const grid = new THREE.GridHelper(size * 1.4, 12, '#94a3b8', '#d5dde8')
-  grid.position.y = -size * 0.35
-  scene.add(grid)
+  resizeObserver = new ResizeObserver(setRendererSize)
+  resizeObserver.observe(container)
 
   function animate() {
     if (!scene || !camera || !renderer) return
-    object.rotation.y += 0.006
+    controls?.update()
     renderer.render(scene, camera)
     animationFrame = requestAnimationFrame(animate)
   }
@@ -101,7 +187,12 @@ async function loadModel() {
     const suffix = props.filename.split('.').pop()?.toLowerCase()
     if (suffix === 'stl') {
       const geometry = new STLLoader().parse(await response.arrayBuffer())
-      const material = new THREE.MeshStandardMaterial({ color: '#167782', metalness: 0.15, roughness: 0.55 })
+      geometry.computeVertexNormals()
+      const material = new THREE.MeshStandardMaterial({
+        color: '#167782',
+        metalness: 0.12,
+        roughness: 0.52,
+      })
       buildScene(new THREE.Mesh(geometry, material))
     } else if (suffix === 'obj') {
       const text = await response.text()

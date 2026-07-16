@@ -75,6 +75,12 @@ const router = createRouter({
           meta: { title: '模型上传' },
         },
         {
+          path: 'projects/:id/files',
+          name: 'project-files',
+          component: () => import('@/views/projects/ProjectFilesView.vue'),
+          meta: { title: '项目文件' },
+        },
+        {
           path: 'projects/:id/tpms',
           name: 'project-tpms',
           component: () => import('@/views/projects/ProjectTpmsView.vue'),

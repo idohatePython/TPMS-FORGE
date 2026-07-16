@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
 from backend.app.core.config import settings
 from backend.app.modules.auth.dependencies import get_current_user
-from backend.app.repositories.mock_data import PROJECT_FILES, PROJECTS
+from backend.app.repositories.mock_data import PROJECT_FILES, PROJECT_GCODE_FILES, PROJECTS
 from backend.app.schemas.auth import UserRead
 from backend.app.schemas.projects import FileUploadRead
 from backend.app.services.storage import get_storage_service
@@ -21,6 +21,28 @@ def safe_filename(filename: str) -> str:
 def ensure_project_exists(project_id: str) -> None:
     if not any(project.id == project_id for project in PROJECTS):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+
+def to_file_read(project_id: str, path: Path) -> FileUploadRead:
+    return FileUploadRead(
+        project_id=project_id,
+        filename=path.name,
+        content_type=None,
+        size_bytes=path.stat().st_size,
+        status="accepted",
+        file_url=f"/api/v1/projects/{project_id}/files/{path.name}",
+    )
+
+
+def to_gcode_read(project_id: str, path: Path) -> FileUploadRead:
+    return FileUploadRead(
+        project_id=project_id,
+        filename=path.name,
+        content_type="text/plain",
+        size_bytes=path.stat().st_size,
+        status="accepted",
+        file_url=f"/api/v1/projects/{project_id}/files/gcodes/{path.name}",
+    )
 
 
 @router.post("")
@@ -53,20 +75,28 @@ def upload_project_file(
     storage = get_storage_service()
     target_path = storage.input_dir(_current_user.id, project_id) / filename
     target_path.write_bytes(content)
+    storage.set_latest_input_file(_current_user.id, project_id, filename)
     PROJECT_FILES[project_id] = str(target_path)
 
     for project in PROJECTS:
         if project.id == project_id:
             project.model_file = filename
 
-    return FileUploadRead(
-        project_id=project_id,
-        filename=filename,
-        content_type=file.content_type,
-        size_bytes=len(content),
-        status="accepted",
-        file_url=f"/api/v1/projects/{project_id}/files/{filename}",
-    )
+    return to_file_read(project_id, target_path)
+
+
+@router.get("")
+def list_project_files(
+    project_id: str,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+) -> list[FileUploadRead]:
+    ensure_project_exists(project_id)
+    storage = get_storage_service()
+    files = storage.list_input_files(current_user.id, project_id)
+    latest = storage.latest_input_file(current_user.id, project_id)
+    if latest is not None:
+        files = [latest, *(path for path in files if path != latest)]
+    return [to_file_read(project_id, path) for path in files]
 
 
 @router.get("/latest")
@@ -75,20 +105,57 @@ def read_latest_project_file(
     _current_user: Annotated[UserRead, Depends(get_current_user)],
 ) -> FileUploadRead:
     ensure_project_exists(project_id)
-    file_path = PROJECT_FILES.get(project_id)
-
-    if file_path is None:
+    storage = get_storage_service()
+    path = storage.latest_input_file(_current_user.id, project_id)
+    if path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
+    PROJECT_FILES[project_id] = str(path)
+    return to_file_read(project_id, path)
 
-    path = Path(file_path)
-    return FileUploadRead(
-        project_id=project_id,
-        filename=path.name,
-        content_type=None,
-        size_bytes=path.stat().st_size,
-        status="accepted",
-        file_url=f"/api/v1/projects/{project_id}/files/{path.name}",
+
+@router.get("/gcodes")
+def list_project_gcode_files(
+    project_id: str,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+) -> list[FileUploadRead]:
+    ensure_project_exists(project_id)
+    files = get_storage_service().list_output_files(current_user.id, project_id)
+    return [to_gcode_read(project_id, path) for path in files]
+
+
+@router.get("/gcodes/{filename}")
+def download_project_gcode_file(
+    project_id: str,
+    filename: str,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+) -> FileResponse:
+    ensure_project_exists(project_id)
+    path = get_storage_service().find_output_file(
+        current_user.id,
+        project_id,
+        safe_filename(filename),
     )
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="G-code file not found")
+    return FileResponse(path, media_type="text/plain", filename=path.name)
+
+
+@router.delete("/gcodes/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_gcode_file(
+    project_id: str,
+    filename: str,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+) -> Response:
+    ensure_project_exists(project_id)
+    storage = get_storage_service()
+    path = storage.find_output_file(current_user.id, project_id, safe_filename(filename))
+    if path is None or not storage.delete_output_file(current_user.id, project_id, path.name):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="G-code file not found")
+
+    for task_id, file_path in list(PROJECT_GCODE_FILES.items()):
+        if Path(file_path) == path:
+            del PROJECT_GCODE_FILES[task_id]
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{filename}")
@@ -98,13 +165,36 @@ def download_project_file(
     _current_user: Annotated[UserRead, Depends(get_current_user)],
 ) -> FileResponse:
     ensure_project_exists(project_id)
-    file_path = PROJECT_FILES.get(project_id)
-
-    if file_path is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
-
-    path = Path(file_path)
-    if path.name != safe_filename(filename) or not path.exists():
+    path = get_storage_service().find_input_file(
+        _current_user.id,
+        project_id,
+        safe_filename(filename),
+    )
+    if path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
 
     return FileResponse(path)
+
+
+@router.delete("/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_file(
+    project_id: str,
+    filename: str,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+) -> Response:
+    ensure_project_exists(project_id)
+    storage = get_storage_service()
+    path = storage.find_input_file(current_user.id, project_id, safe_filename(filename))
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
+
+    next_file = storage.delete_input_file(current_user.id, project_id, path.name)
+    if next_file is None:
+        PROJECT_FILES.pop(project_id, None)
+    else:
+        PROJECT_FILES[project_id] = str(next_file)
+
+    for project in PROJECTS:
+        if project.id == project_id:
+            project.model_file = next_file.name if next_file is not None else ""
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -48,6 +48,7 @@ const menuOptions = computed<MenuOption[]>(() => {
     { label: () => h(RouterLink, { to: '/dashboard' }, { default: () => '工作台' }), key: 'dashboard' },
     { label: () => h(RouterLink, { to: '/projects' }, { default: () => '项目管理' }), key: 'projects' },
     { label: () => h(RouterLink, { to: '/projects/p-1001/upload' }, { default: () => '模型上传' }), key: 'upload' },
+    { label: () => h(RouterLink, { to: '/projects/p-1001/files' }, { default: () => '项目文件' }), key: 'files' },
     { label: () => h(RouterLink, { to: '/projects/p-1001/tpms' }, { default: () => 'TPMS 生成' }), key: 'tpms' },
     { label: () => h(RouterLink, { to: '/projects/p-1001/slicing' }, { default: () => '切片与 G-code' }), key: 'slicing' },
   ]
@@ -71,6 +72,7 @@ const activeKey = computed(() => {
   const name = String(route.name ?? '')
 
   if (name.includes('upload')) return 'upload'
+  if (name.includes('files')) return 'files'
   if (name.includes('tpms')) return 'tpms'
   if (name.includes('slicing')) return 'slicing'
   if (name.includes('admin-users')) return 'admin-users'

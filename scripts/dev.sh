@@ -35,6 +35,7 @@ case "${1:-help}" in
     ;;
   test)
     "$UV_BIN" run pytest
+    pnpm --dir frontend test
     ;;
   lint)
     "$UV_BIN" run ruff check .

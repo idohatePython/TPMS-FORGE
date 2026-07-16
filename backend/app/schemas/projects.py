@@ -56,6 +56,7 @@ class AdminUserRead(BaseModel):
 
 
 class SlicingRequest(BaseModel):
+    input_filename: str | None = None
     layer_height: float = 0.2
     line_width: float = 0.42
     print_speed: int = 60

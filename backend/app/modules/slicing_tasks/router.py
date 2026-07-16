@@ -41,19 +41,25 @@ def create_slicing_task(
     if not any(project.id == project_id for project in PROJECTS):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    input_file = PROJECT_FILES.get(project_id)
-    if input_file is None:
+    storage = get_storage_service()
+    if payload.input_filename:
+        input_path = storage.find_input_file(current_user.id, project_id, payload.input_filename)
+    else:
+        input_path = storage.latest_input_file(current_user.id, project_id)
+
+    if input_path is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Upload an STL/OBJ model before slicing.",
         )
 
-    output_dir = get_storage_service().output_dir(current_user.id, project_id)
+    PROJECT_FILES[project_id] = str(input_path)
+    output_dir = storage.output_dir(current_user.id, project_id)
 
     try:
         result = run_slicing_gcode(
             SlicingGcodeInput(
-                input_file=Path(input_file),
+                input_file=input_path,
                 output_dir=output_dir,
                 params={
                     "layer_height": payload.layer_height,

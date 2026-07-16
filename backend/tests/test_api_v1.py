@@ -9,11 +9,20 @@ from backend.app.core.config import settings
 from backend.app.modules.admin.router import list_admin_users, read_admin_summary
 from backend.app.modules.auth.dependencies import get_current_user
 from backend.app.modules.auth.router import login, read_me
-from backend.app.modules.files.router import upload_project_file
+from backend.app.modules.files.router import (
+    delete_project_file,
+    delete_project_gcode_file,
+    list_project_files,
+    list_project_gcode_files,
+    read_latest_project_file,
+    upload_project_file,
+)
 from backend.app.modules.model_tasks.router import read_model_task
 from backend.app.modules.projects.router import list_projects, read_project
 from backend.app.modules.slicing_tasks.router import read_slicing_task
+from backend.app.repositories.mock_data import PROJECT_FILES
 from backend.app.schemas.auth import LoginRequest, UserRead
+from backend.app.services.storage import get_storage_service
 
 
 def make_user(role: str = "user") -> UserRead:
@@ -85,3 +94,49 @@ def test_upload_accepts_stl_and_rejects_unknown_project(
         upload_project_file("missing", current_user, missing_file)
 
     assert error.value.status_code == 404
+
+
+def test_uploaded_models_persist_without_the_in_memory_file_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
+    current_user = make_user()
+    first = UploadFile(filename="first.stl", file=BytesIO(b"solid first"))
+    second = UploadFile(filename="Phone Holder.stl", file=BytesIO(b"solid phone holder"))
+
+    upload_project_file("p-1001", current_user, first)
+    upload_project_file("p-1001", current_user, second)
+    PROJECT_FILES.clear()
+
+    saved_files = list_project_files("p-1001", current_user)
+    latest = read_latest_project_file("p-1001", current_user)
+
+    assert {file.filename for file in saved_files} == {"first.stl", "Phone Holder.stl"}
+    assert latest.filename == "Phone Holder.stl"
+    assert Path(PROJECT_FILES["p-1001"]).exists()
+
+
+def test_project_file_management_lists_and_deletes_models_and_gcode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
+    current_user = make_user()
+    model = UploadFile(filename="part.stl", file=BytesIO(b"solid"))
+    upload_project_file("p-1001", current_user, model)
+
+    output = get_storage_service().output_dir(current_user.id, "p-1001") / "part.gcode"
+    output.write_text("G1 X1 Y1", encoding="utf-8")
+
+    assert [file.filename for file in list_project_files("p-1001", current_user)] == ["part.stl"]
+    gcode_files = list_project_gcode_files("p-1001", current_user)
+    assert [file.filename for file in gcode_files] == ["part.gcode"]
+
+    assert delete_project_file("p-1001", "part.stl", current_user).status_code == 204
+    assert delete_project_gcode_file("p-1001", "part.gcode", current_user).status_code == 204
+    model_path = (
+        tmp_path / "users" / current_user.id / "projects" / "p-1001" / "inputs" / "part.stl"
+    )
+    assert not model_path.exists()
+    assert not output.exists()

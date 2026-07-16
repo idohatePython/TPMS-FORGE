@@ -32,7 +32,7 @@ services:
       - ./backend:/app/backend
       - ./algorithms:/app/algorithms
       - ./worker:/app/worker
-      - ./storage:/app/storage
+      - ${TPMS_STORAGE_HOST_PATH:-../TPMS-FORGE-data}:/app/storage
     command: uv run uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - postgres
@@ -55,7 +55,7 @@ services:
       - ./backend:/app/backend
       - ./algorithms:/app/algorithms
       - ./worker:/app/worker
-      - ./storage:/app/storage
+      - ${TPMS_STORAGE_HOST_PATH:-../TPMS-FORGE-data}:/app/storage
     command: uv run celery -A worker.celery_app.celery_app worker --loglevel=INFO
     depends_on:
       - postgres

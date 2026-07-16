@@ -32,7 +32,7 @@ Full design documents are maintained outside this project directory:
 - Backend: FastAPI, Python 3.12, Pydantic v2, SQLAlchemy 2.x, PostgreSQL 16
 - Worker: Celery + Redis 7
 - Algorithms: NumPy, SciPy, scikit-image, trimesh, shapely, networkx, meshio
-- Storage: local filesystem in V1.0, abstracted through StorageService for future MinIO support
+- Storage: local filesystem in V1.0, abstracted through StorageService for future MinIO support. Runtime STL/OBJ/G-code data belongs in `../TPMS-FORGE-data` (configured with `STORAGE_ROOT`), outside this Git repository.
 - Tooling: uv, Ruff, mypy, pytest, pre-commit, structlog
 
 ## Project Layout

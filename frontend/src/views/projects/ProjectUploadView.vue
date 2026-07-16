@@ -42,6 +42,14 @@
         :filename="uploadedFile?.filename"
       />
     </NCard>
+
+    <NCard v-if="savedFiles.length" title="已保存模型" :bordered="false">
+      <NSelect
+        v-model:value="selectedFilename"
+        :options="savedFileOptions"
+        @update:value="selectSavedFile"
+      />
+    </NCard>
   </section>
 </template>
 
@@ -52,23 +60,39 @@ import {
   NCard,
   NDescriptions,
   NDescriptionsItem,
+  NSelect,
   NText,
   NUpload,
   NUploadDragger,
 } from 'naive-ui'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { normalizeApiError } from '@/api/client'
 import ModelPreview from '@/components/ModelPreview.vue'
-import { getLatestProjectFileApi, getProjectApi, uploadProjectFileApi, type UploadedFile } from '@/api/workspace'
+import {
+  getLatestProjectFileApi,
+  getProjectApi,
+  listProjectFilesApi,
+  uploadProjectFileApi,
+  type UploadedFile,
+} from '@/api/workspace'
 import type { Project } from '@/types/domain'
 
 const route = useRoute()
 const project = ref<Project | null>(null)
 const uploadedFile = ref<UploadedFile | null>(null)
+const savedFiles = ref<UploadedFile[]>([])
+const selectedFilename = ref<string | null>(null)
 const errorMessage = ref('')
 const successMessage = ref('')
+
+const savedFileOptions = computed(() =>
+  savedFiles.value.map((file) => ({
+    label: `${file.filename} (${(file.sizeBytes / 1024 / 1024).toFixed(2)} MB)`,
+    value: file.filename,
+  })),
+)
 
 function absoluteFileUrl(fileUrl: string) {
   return `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'}${fileUrl.replace('/api/v1', '')}`
@@ -81,9 +105,13 @@ async function loadProject() {
     const projectId = String(route.params.id)
     project.value = await getProjectApi(projectId)
     try {
-      uploadedFile.value = await getLatestProjectFileApi(projectId)
+      savedFiles.value = await listProjectFilesApi(projectId)
+      uploadedFile.value = savedFiles.value[0] ?? (await getLatestProjectFileApi(projectId))
+      selectedFilename.value = uploadedFile.value.filename
     } catch {
       uploadedFile.value = null
+      savedFiles.value = []
+      selectedFilename.value = null
     }
   } catch (error) {
     project.value = null
@@ -102,12 +130,18 @@ async function uploadFile(options: UploadCustomRequestOptions) {
     }
 
     uploadedFile.value = await uploadProjectFileApi(String(route.params.id), rawFile)
+    savedFiles.value = await listProjectFilesApi(String(route.params.id))
+    selectedFilename.value = uploadedFile.value.filename
     successMessage.value = `${uploadedFile.value.filename} 已被后端接收`
     options.onFinish()
   } catch (error) {
     errorMessage.value = normalizeApiError(error).message
     options.onError()
   }
+}
+
+function selectSavedFile(filename: string) {
+  uploadedFile.value = savedFiles.value.find((file) => file.filename === filename) ?? null
 }
 
 onMounted(loadProject)

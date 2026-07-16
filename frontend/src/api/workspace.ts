@@ -174,9 +174,28 @@ export async function getLatestProjectFileApi(projectId: string) {
   return mapUploadedFile(response.data)
 }
 
+export async function listProjectFilesApi(projectId: string) {
+  const response = await apiClient.get<FileUploadResponse[]>(`/projects/${projectId}/files`)
+  return response.data.map(mapUploadedFile)
+}
+
+export async function listProjectGcodeFilesApi(projectId: string) {
+  const response = await apiClient.get<FileUploadResponse[]>(`/projects/${projectId}/files/gcodes`)
+  return response.data.map(mapUploadedFile)
+}
+
+export async function deleteProjectFileApi(projectId: string, filename: string) {
+  await apiClient.delete(`/projects/${projectId}/files/${encodeURIComponent(filename)}`)
+}
+
+export async function deleteProjectGcodeFileApi(projectId: string, filename: string) {
+  await apiClient.delete(`/projects/${projectId}/files/gcodes/${encodeURIComponent(filename)}`)
+}
+
 export async function createSlicingTaskApi(
   projectId: string,
   params: {
+    inputFilename?: string
     layerHeight: number
     lineWidth: number
     printSpeed: number
@@ -195,6 +214,7 @@ export async function createSlicingTaskApi(
   },
 ): Promise<SlicingRun> {
   const response = await apiClient.post<SlicingRunResponse>(`/projects/${projectId}/slicing-tasks`, {
+    input_filename: params.inputFilename,
     layer_height: params.layerHeight,
     line_width: params.lineWidth,
     print_speed: params.printSpeed,
