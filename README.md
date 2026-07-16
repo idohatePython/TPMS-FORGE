@@ -26,6 +26,8 @@ Full design documents are maintained outside this project directory:
 ../my_docs/
 ```
 
+Current development milestones and handoff tasks are documented in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md).
+
 ## Tech Stack
 
 - Frontend: Vue 3, TypeScript, Vite, Pinia, Naive UI, Three.js
