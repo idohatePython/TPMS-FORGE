@@ -164,6 +164,17 @@ def find_gcode_file(output_dir: Path, input_file: Path) -> Path:
     return output_dir / f"{input_file.stem}.gcode"
 
 
+def normalize_gcode_filename(gcode_file: Path, input_file: Path) -> Path:
+    expected_file = gcode_file.with_name(f"{input_file.stem}.gcode")
+    if gcode_file == expected_file:
+        return gcode_file
+
+    if expected_file.exists():
+        expected_file.unlink()
+    gcode_file.replace(expected_file)
+    return expected_file
+
+
 def run_orca_slicer(payload: SlicingGcodeInput) -> SlicingGcodeResult:
     slicer_binary = resolve_slicer_binary(settings.orca_slicer_path, "OrcaSlicer")
     dynamic_machine = build_orca_machine_file(payload)
@@ -208,7 +219,9 @@ def run_orca_slicer(payload: SlicingGcodeInput) -> SlicingGcodeResult:
     if not output_file.exists():
         raise SlicerExecutionError("OrcaSlicer finished without producing a G-code file.")
 
-    return SlicingGcodeResult(gcode_file=output_file)
+    return SlicingGcodeResult(
+        gcode_file=normalize_gcode_filename(output_file, payload.input_file)
+    )
 
 
 def run_prusa_slicer(payload: SlicingGcodeInput) -> SlicingGcodeResult:
