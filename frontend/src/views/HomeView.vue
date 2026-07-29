@@ -1,40 +1,58 @@
 <template>
   <main>
     <section class="hero">
+      <div class="hero-glow hero-glow-one" />
+      <div class="hero-glow hero-glow-two" />
       <div class="hero-inner">
-        <p class="eyebrow">TPMS STRUCTURE TOOLCHAIN</p>
-        <h1>TPMS-FORGE</h1>
-        <p>
-          面向科研与工程验证的 TPMS 结构生成平台，从 STL/OBJ 模型、TPMS 填充、切片路径到
-          Marlin G-code 输出，逐步跑通完整打印闭环。
-        </p>
-        <div class="hero-actions">
-          <NButton type="primary" size="large" color="#f0a954" @click="router.push('/demo')">
-            打开 Demo
-          </NButton>
-          <NButton ghost size="large" @click="router.push('/login')">进入工作台</NButton>
+        <div class="hero-copy">
+          <p class="hero-kicker">TPMS STRUCTURE TOOLCHAIN</p>
+          <h1>从几何，<br>到可打印路径。</h1>
+          <p class="hero-lead">
+            生成可控的 TPMS 结构，完成模型切片，并在浏览器中检查每一层真实打印路径。
+          </p>
+          <div class="hero-actions">
+            <NButton type="primary" size="large" color="#115e67" @click="router.push('/login')">
+              进入工作台
+            </NButton>
+            <NButton secondary size="large" @click="router.push('/demo')">查看基础 Demo</NButton>
+          </div>
+          <div class="hero-capabilities">
+            <span>STL / OBJ</span>
+            <i />
+            <span>TPMS</span>
+            <i />
+            <span>OrcaSlicer</span>
+            <i />
+            <span>G-code</span>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="section">
-      <div class="section-inner page">
-        <div class="page-heading">
-          <div>
-            <p class="eyebrow">V1.0 WORKFLOW</p>
-            <h2>从模型到 G-code 的核心流程</h2>
-          </div>
+    <section class="section home-workflow">
+      <div class="section-inner">
+        <div class="home-section-heading">
+          <p class="eyebrow">ONE CONNECTED WORKFLOW</p>
+          <h2>一条完整、可追踪的制造流程。</h2>
+          <p>每一步都保留参数、任务状态和输出文件，让结构设计能够被检查、复现和继续加工。</p>
         </div>
-        <div class="grid-3">
-          <NCard title="模型上传" :bordered="false">
-            支持 STL/OBJ 文件进入项目空间，后续由后端统一处理存储、鉴权与任务关联。
-          </NCard>
-          <NCard title="TPMS 生成" :bordered="false">
-            以 Schwarz-P、Gyroid、Diamond 为首批结构，围绕参数面板与三维预览组织交互。
-          </NCard>
-          <NCard title="切片与下载" :bordered="false">
-            切片任务生成路径与 Marlin G-code，完成后在项目内下载和追踪历史结果。
-          </NCard>
+
+        <div class="workflow-grid">
+          <article>
+            <span>01</span>
+            <h3>定义结构</h3>
+            <p>上传模型，设置晶胞、数量、壁厚与边界模式，生成真实 TPMS 网格。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>完成切片</h3>
+            <p>选择 OrcaSlicer 配置，将耗时计算交给后台任务，保留完整参数记录。</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>检查路径</h3>
+            <p>逐层、逐行查看 G-code 路径，定位打印类型、空驶和潜在问题。</p>
+          </article>
         </div>
       </div>
     </section>
@@ -42,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NCard } from 'naive-ui'
+import { NButton } from 'naive-ui'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()

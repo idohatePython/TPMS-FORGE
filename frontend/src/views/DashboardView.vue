@@ -1,23 +1,35 @@
 <template>
-  <section class="page">
-    <div class="page-heading">
+  <section class="page dashboard-page">
+    <div class="page-heading dashboard-hero">
       <div>
-        <p class="eyebrow">OVERVIEW</p>
-        <h1>工作台</h1>
-        <p>项目、模型生成任务与切片任务的统一入口。</p>
+        <p class="eyebrow">ENGINEERING WORKSPACE</p>
+        <h1>欢迎回来，{{ auth.user?.username ?? 'researcher' }}</h1>
+        <p>继续管理项目、模型生成任务与切片结果。</p>
       </div>
-      <NButton type="primary" @click="router.push('/projects')">查看项目</NButton>
+      <NButton secondary @click="router.push('/projects')">管理项目</NButton>
     </div>
 
     <NAlert v-if="errorMessage" type="error" :title="errorMessage" />
 
-    <div class="grid-3">
-      <NCard title="项目数" :bordered="false"><NStatistic :value="dashboardStats.projects" /></NCard>
-      <NCard title="运行中任务" :bordered="false"><NStatistic :value="dashboardStats.runningTasks" /></NCard>
-      <NCard title="已完成任务" :bordered="false"><NStatistic :value="dashboardStats.completedTasks" /></NCard>
+    <div class="grid-3 dashboard-stats">
+      <NCard :bordered="false" class="dashboard-stat-card">
+        <p>项目</p>
+        <NStatistic :value="dashboardStats.projects" />
+        <small>当前账户中的工程项目</small>
+      </NCard>
+      <NCard :bordered="false" class="dashboard-stat-card">
+        <p>运行中</p>
+        <NStatistic :value="dashboardStats.runningTasks" />
+        <small>正在计算的后台任务</small>
+      </NCard>
+      <NCard :bordered="false" class="dashboard-stat-card">
+        <p>已完成</p>
+        <NStatistic :value="dashboardStats.completedTasks" />
+        <small>可以继续查看或下载</small>
+      </NCard>
     </div>
 
-    <NCard title="最近任务" :bordered="false">
+    <NCard title="最近任务" :bordered="false" class="dashboard-task-card">
       <NDataTable :columns="columns" :data="tasks" :loading="loading" :pagination="false" />
     </NCard>
   </section>
@@ -31,9 +43,11 @@ import { useRouter } from 'vue-router'
 
 import { normalizeApiError } from '@/api/client'
 import { getDashboardStatsApi, listProjectsApi, listProjectTasksApi } from '@/api/workspace'
+import { useAuthStore } from '@/stores/auth'
 import type { ForgeTask } from '@/types/domain'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(false)
 const errorMessage = ref('')
 const dashboardStats = ref({ projects: 0, runningTasks: 0, completedTasks: 0, storageGb: 0 })

@@ -31,17 +31,49 @@ def make_user(role: str = "user") -> UserRead:
     return UserRead(id="user-001", username="machuang", role="user")
 
 
-def test_login_and_read_current_user() -> None:
-    token = login(LoginRequest(username="machuang", password="dev-only", role="admin"))
-    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token.access_token)
+def test_login_regular_user_and_read_current_user() -> None:
+    token = login(LoginRequest(identifier="researcher", password="dev-only"))
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer",
+        credentials=token.access_token,
+    )
     current_user = get_current_user(credentials)
 
     response = read_me(current_user)
 
-    assert response.username == "machuang"
-    assert response.role == "admin"
+    assert response.username == "researcher"
+    assert response.role == "user"
 
 
+def test_login_admin_role_is_decided_by_account() -> None:
+    token = login(LoginRequest(identifier="admin", password="admin-only"))
+
+    assert token.user.username == "admin"
+    assert token.user.role == "admin"
+
+@pytest.mark.parametrize(
+    ("identifier", "password"),
+    [
+        ("researcher", "wrong-password"),
+        ("admin", "wrong-password"),
+        ("missing-user", "dev-only"),
+    ],
+)
+def test_login_rejects_invalid_credentials(
+    identifier: str,
+    password: str,
+) -> None:
+    with pytest.raises(HTTPException) as error:
+        login(
+            LoginRequest(
+                identifier=identifier,
+                password=password,
+            )
+        )
+
+    assert error.value.status_code == 401
+    assert error.value.detail == "账号或密码错误"
+    
 def test_projects_require_authentication_dependency() -> None:
     with pytest.raises(HTTPException) as error:
         get_current_user(None)

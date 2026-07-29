@@ -1,6 +1,6 @@
 <template>
   <NLayout has-sider class="workspace-layout">
-    <NLayoutSider bordered collapse-mode="width" :collapsed-width="72" :width="248">
+    <NLayoutSider class="workspace-sider" bordered collapse-mode="width" :collapsed-width="72" :width="248">
       <div class="sider-brand">
         <span class="brand-mark">TF</span>
         <div>
@@ -11,7 +11,7 @@
       <NMenu :options="menuOptions" :value="activeKey" @update:value="handleMenuSelect" />
     </NLayoutSider>
 
-    <NLayout>
+    <NLayout class="workspace-main">
       <NLayoutHeader class="workspace-header" bordered>
         <div>
           <p class="eyebrow">WORKSPACE</p>

@@ -1,5 +1,5 @@
 import { apiClient } from '@/api/client'
-import type { AuthUser, UserRole } from '@/stores/auth'
+import type { AuthUser } from '@/stores/auth'
 
 interface LoginResponse {
   access_token: string
@@ -7,11 +7,10 @@ interface LoginResponse {
   user: AuthUser
 }
 
-export async function loginApi(username: string, password: string, role: UserRole) {
+export async function loginApi(identifier: string, password: string) {
   const response = await apiClient.post<LoginResponse>('/auth/login', {
-    username,
+    identifier,
     password,
-    role,
   })
 
   return {

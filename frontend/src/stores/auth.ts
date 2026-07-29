@@ -37,15 +37,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => Boolean(user.value && token.value))
   const role = computed<UserRole>(() => user.value?.role ?? 'user')
 
-  async function login(username: string, password: string, selectedRole: UserRole = 'user') {
+  async function login(identifier: string, password: string) {
     loading.value = true
 
     try {
-      const response = await loginApi(
-        username.trim() || (selectedRole === 'admin' ? 'admin' : 'researcher'),
-        password,
-        selectedRole,
-      )
+      const response = await loginApi(identifier.trim(), password)
 
       user.value = response.user
       token.value = response.accessToken
