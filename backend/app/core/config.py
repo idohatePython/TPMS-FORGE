@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     orca_machine_profile: Path | None = None
     orca_process_profile: Path | None = None
     orca_filament_profile: Path | None = None
+    orca_windows_work_dir: Path | None = None
+    vsp_slicer_path: Path | None = None
     prusa_slicer_path: str = "prusa-slicer"
     slicer_timeout_seconds: int = 300
 

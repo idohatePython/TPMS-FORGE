@@ -1,31 +1,43 @@
 <template>
   <div class="gcode-preview-shell">
     <div class="gcode-preview-stage">
-      <div ref="containerRef" class="model-preview gcode-preview">
-        <NSpin v-if="loading" />
-        <NEmpty v-else-if="!gcodeUrl" description="切片完成后显示路径预览" />
-        <NAlert v-else-if="errorMessage" type="error" :title="errorMessage" />
-      </div>
-
       <aside v-if="layers.length" class="gcode-layer-range" aria-label="层显示范围">
+        <NRadioGroup v-model:value="displayMode" size="small" class="gcode-display-mode">
+          <NRadioButton value="single">单层</NRadioButton>
+          <NRadioButton value="range">层范围</NRadioButton>
+          <NRadioButton value="all">整体</NRadioButton>
+        </NRadioGroup>
         <div class="gcode-layer-range-heading">
           <span>显示层</span>
           <strong>{{ selectedLayerRange[0] + 1 }} - {{ selectedLayerRange[1] + 1 }}</strong>
         </div>
+        <span class="gcode-layer-bound">{{ selectedLowerLayerLabel }}</span>
         <NSlider
-          v-model:value="layerRange"
-          vertical
-          range
+          v-if="displayMode === 'single'"
+          v-model:value="currentLayer"
           :min="0"
           :max="Math.max(layers.length - 1, 0)"
           :step="1"
           :format-tooltip="formatLayerTooltip"
         />
-        <div class="gcode-layer-range-values">
-          <span>{{ selectedLowerLayerLabel }}</span>
-          <span>{{ layerHeightLabel }}</span>
-        </div>
+        <NSlider
+          v-else
+          v-model:value="layerRange"
+          range
+          :disabled="displayMode === 'all'"
+          :min="0"
+          :max="Math.max(layers.length - 1, 0)"
+          :step="1"
+          :format-tooltip="formatLayerTooltip"
+        />
+        <span class="gcode-layer-bound is-end">{{ layerHeightLabel }}</span>
       </aside>
+
+      <div ref="containerRef" class="model-preview gcode-preview">
+        <NSpin v-if="loading" />
+        <NEmpty v-else-if="!gcodeUrl" description="切片完成后显示路径预览" />
+        <NAlert v-else-if="errorMessage" type="error" :title="errorMessage" />
+      </div>
     </div>
 
     <div class="gcode-preview-controls">
@@ -86,7 +98,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { NAlert, NCheckbox, NEmpty, NSlider, NSpin, NText } from 'naive-ui'
+import { NAlert, NCheckbox, NEmpty, NRadioButton, NRadioGroup, NSlider, NSpin, NText } from 'naive-ui'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
@@ -175,6 +187,8 @@ interface PathBatch {
   lengths: Float32Array
 }
 
+type DisplayMode = 'single' | 'range' | 'all'
+
 interface DiagnosticItem {
   label: string
   durationMs: number
@@ -224,6 +238,7 @@ const transferBatches = ref<TransferBatch[]>([])
 const currentLayer = ref(0)
 const currentLayerLineOffset = ref(0)
 const layerRange = ref<[number, number]>([0, 0])
+const displayMode = ref<DisplayMode>('single')
 const visibleTypes = ref<Record<SegmentType, boolean>>({
   innerWall: true,
   outerWall: true,
@@ -246,8 +261,10 @@ let controls: OrbitControls | null = null
 let resizeObserver: ResizeObserver | null = null
 let animationFrame = 0
 let pathGroup: THREE.Group | null = null
+let contextGroup: THREE.Group | null = null
 let activeLineGroup: THREE.Group | null = null
 let pathBatches = new Map<SegmentType, PathBatch>()
+let contextBatches = new Map<SegmentType, PathBatch>()
 let lastBufferBuildDurationMs = 0
 
 const activeLayer = computed(() => layers.value[currentLayer.value] ?? null)
@@ -377,8 +394,10 @@ function disposeScene() {
   scene = null
   camera = null
   pathGroup = null
+  contextGroup = null
   activeLineGroup = null
   pathBatches = new Map<SegmentType, PathBatch>()
+  contextBatches = new Map<SegmentType, PathBatch>()
 }
 
 function parseCoordinate(line: string, axis: 'X' | 'Y' | 'Z' | 'E') {
@@ -790,7 +809,9 @@ function initScene() {
 
   scene.add(createBed(props.bedSize))
   pathGroup = new THREE.Group()
+  contextGroup = new THREE.Group()
   activeLineGroup = new THREE.Group()
+  scene.add(contextGroup)
   scene.add(pathGroup)
   scene.add(activeLineGroup)
   buildPathBatches()
@@ -831,11 +852,14 @@ function buildLineSegmentsFromPositions(positions: Float32Array, color: string, 
 }
 
 function buildPathBatches() {
-  if (!pathGroup) return
+  if (!pathGroup || !contextGroup) return
   const startedAt = performance.now()
   pathGroup.children.forEach(disposeObject)
   pathGroup.clear()
+  contextGroup.children.forEach(disposeObject)
+  contextGroup.clear()
   pathBatches = new Map<SegmentType, PathBatch>()
+  contextBatches = new Map<SegmentType, PathBatch>()
 
   for (const batch of transferBatches.value) {
     const line = buildLineSegmentsFromPositions(
@@ -849,6 +873,21 @@ function buildPathBatches() {
     pathBatches.set(batch.type, {
       type: batch.type,
       line,
+      lineNumbers: batch.lineNumbers,
+      zValues: batch.zValues,
+      lengths: batch.lengths,
+    })
+
+    const contextLine = buildLineSegmentsFromPositions(
+      batch.positions,
+      typeMeta[batch.type].color,
+      batch.type === 'travel' ? 0.035 : 0.1,
+    )
+    contextLine.visible = false
+    contextGroup.add(contextLine)
+    contextBatches.set(batch.type, {
+      type: batch.type,
+      line: contextLine,
       lineNumbers: batch.lineNumbers,
       zValues: batch.zValues,
       lengths: batch.lengths,
@@ -894,15 +933,24 @@ function renderActiveLine() {
 
 function renderLayers() {
   const lowerLayer = selectedLowerLayer.value
-  const startLine = lowerLayer?.startLine ?? 1
-  const endLine = currentLineNumber.value
+  const showAll = displayMode.value === 'all'
+  const startLine = showAll ? 1 : (lowerLayer?.startLine ?? 1)
+  const endLine = showAll ? gcodeLines.value.length : currentLineNumber.value
 
   for (const batch of pathBatches.values()) {
     batch.line.visible = visibleTypes.value[batch.type]
     const drawRange = getSegmentDrawRange(batch.lineNumbers, startLine, endLine)
     batch.line.geometry.setDrawRange(drawRange.startVertex, drawRange.vertexCount)
   }
-  renderActiveLine()
+  for (const batch of contextBatches.values()) {
+    batch.line.visible = !showAll && visibleTypes.value[batch.type]
+  }
+  if (showAll) {
+    activeLineGroup?.children.forEach(disposeObject)
+    activeLineGroup?.clear()
+  } else {
+    renderActiveLine()
+  }
 }
 
 function setTypeVisible(type: SegmentType, enabled: boolean) {
@@ -945,6 +993,7 @@ async function loadGcode() {
     currentLayer.value = 0
     currentLayerLineOffset.value = 0
     layerRange.value = [0, 0]
+    displayMode.value = 'single'
     codeScrollTop.value = 0
     return
   }
@@ -987,6 +1036,7 @@ async function loadGcode() {
     currentLayer.value = 0
     currentLayerLineOffset.value = 0
     layerRange.value = [0, 0]
+    displayMode.value = 'single'
     codeScrollTop.value = 0
     const assignDurationMs = performance.now() - assignStartedAt
 
@@ -1031,6 +1081,7 @@ async function loadGcode() {
     currentLayer.value = 0
     currentLayerLineOffset.value = 0
     layerRange.value = [0, 0]
+    displayMode.value = 'single'
     codeScrollTop.value = 0
     errorMessage.value = error instanceof Error ? error.message : 'G-code 预览失败'
   } finally {
@@ -1039,7 +1090,14 @@ async function loadGcode() {
 }
 
 watch(() => props.gcodeUrl, loadGcode, { immediate: true })
+watch(displayMode, (mode) => {
+  const lastLayer = Math.max(layers.value.length - 1, 0)
+  if (mode === 'single') layerRange.value = [currentLayer.value, currentLayer.value]
+  if (mode === 'all') layerRange.value = [0, lastLayer]
+  renderLayers()
+})
 watch(currentLayer, () => {
+  if (displayMode.value === 'single') layerRange.value = [currentLayer.value, currentLayer.value]
   currentLayerLineOffset.value = 0
   renderLayers()
   scrollCodeToCurrentLine()
@@ -1051,7 +1109,12 @@ watch(currentLayerLineOffset, () => {
 watch(
   layerRange,
   (value) => {
-    const [lower, upper] = selectedLayerRange.value
+    let [lower, upper] = selectedLayerRange.value
+    if (displayMode.value === 'single') lower = upper
+    if (displayMode.value === 'all') {
+      lower = 0
+      upper = Math.max(layers.value.length - 1, 0)
+    }
     if (value[0] !== lower || value[1] !== upper) {
       layerRange.value = [lower, upper]
       return

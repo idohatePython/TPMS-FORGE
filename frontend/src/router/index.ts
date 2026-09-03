@@ -72,19 +72,23 @@ const router = createRouter({
           path: 'projects/:id/upload',
           name: 'project-upload',
           component: () => import('@/views/projects/ProjectUploadView.vue'),
-          meta: { title: '模型上传' },
+          meta: { title: '模型导入' },
         },
         {
           path: 'projects/:id/files',
           name: 'project-files',
           component: () => import('@/views/projects/ProjectFilesView.vue'),
-          meta: { title: '项目文件' },
+          meta: { title: '模型与文件' },
         },
         {
           path: 'projects/:id/tpms',
           name: 'project-tpms',
-          component: () => import('@/views/projects/ProjectTpmsView.vue'),
-          meta: { title: 'TPMS 生成' },
+          redirect: (to) => ({
+            name: 'project-slicing',
+            params: { id: to.params.id },
+            query: { infill: 'tpms' },
+          }),
+          meta: { title: '切片配置' },
         },
         {
           path: 'model-tasks/:id',
