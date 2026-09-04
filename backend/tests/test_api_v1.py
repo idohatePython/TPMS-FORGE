@@ -15,13 +15,21 @@ from backend.app.modules.files.router import (
     list_project_files,
     list_project_gcode_files,
     read_latest_project_file,
+    select_latest_project_file,
     upload_project_file,
 )
 from backend.app.modules.model_tasks.router import read_model_task
-from backend.app.modules.projects.router import list_projects, read_project
+from backend.app.modules.projects.router import (
+    create_project,
+    list_projects,
+    read_dashboard_stats,
+    read_project,
+    update_project,
+)
 from backend.app.modules.slicing_tasks.router import read_slicing_task
-from backend.app.repositories.mock_data import PROJECT_FILES
+from backend.app.repositories.mock_data import PROJECT_FILES, PROJECTS, TASKS
 from backend.app.schemas.auth import LoginRequest, UserRead
+from backend.app.schemas.projects import FileSelectionRequest, ProjectCreateRequest, ProjectUpdateRequest, TaskRead
 from backend.app.services.storage import get_storage_service
 
 
@@ -31,17 +39,49 @@ def make_user(role: str = "user") -> UserRead:
     return UserRead(id="user-001", username="machuang", role="user")
 
 
-def test_login_and_read_current_user() -> None:
-    token = login(LoginRequest(username="machuang", password="dev-only", role="admin"))
-    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token.access_token)
+def test_login_regular_user_and_read_current_user() -> None:
+    token = login(LoginRequest(identifier="researcher", password="dev-only"))
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer",
+        credentials=token.access_token,
+    )
     current_user = get_current_user(credentials)
 
     response = read_me(current_user)
 
-    assert response.username == "machuang"
-    assert response.role == "admin"
+    assert response.username == "researcher"
+    assert response.role == "user"
 
 
+def test_login_admin_role_is_decided_by_account() -> None:
+    token = login(LoginRequest(identifier="admin", password="admin-only"))
+
+    assert token.user.username == "admin"
+    assert token.user.role == "admin"
+
+@pytest.mark.parametrize(
+    ("identifier", "password"),
+    [
+        ("researcher", "wrong-password"),
+        ("admin", "wrong-password"),
+        ("missing-user", "dev-only"),
+    ],
+)
+def test_login_rejects_invalid_credentials(
+    identifier: str,
+    password: str,
+) -> None:
+    with pytest.raises(HTTPException) as error:
+        login(
+            LoginRequest(
+                identifier=identifier,
+                password=password,
+            )
+        )
+
+    assert error.value.status_code == 401
+    assert error.value.detail == "账号或密码错误"
+    
 def test_projects_require_authentication_dependency() -> None:
     with pytest.raises(HTTPException) as error:
         get_current_user(None)
@@ -49,24 +89,125 @@ def test_projects_require_authentication_dependency() -> None:
     assert error.value.status_code == 401
 
 
-def test_list_and_read_projects() -> None:
+def test_list_and_read_projects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
     current_user = make_user()
 
     projects = list_projects(current_user)
     project = read_project("p-1001", current_user)
 
     assert projects[0].id == "p-1001"
-    assert project.model_file == "bracket_raw.stl"
+    assert project.model_file == ""
+    assert project.status == "queued"
+
+
+def test_project_name_can_be_updated_and_read_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
+    current_user = make_user()
+    original_project = PROJECTS[0]
+
+    try:
+        updated = update_project(
+            "p-1001",
+            ProjectUpdateRequest(name="  鞋垫 TPMS 测试  "),
+            current_user,
+        )
+        reloaded = read_project("p-1001", current_user)
+    finally:
+        PROJECTS[0] = original_project
+
+    assert updated.name == "鞋垫 TPMS 测试"
+    assert reloaded.name == "鞋垫 TPMS 测试"
+
+
+def test_project_can_be_created(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
+    project = create_project(ProjectCreateRequest(name="  梯度鞋垫  ", material="TPU"), make_user())
+    try:
+        assert project.name == "梯度鞋垫"
+        assert project.material == "TPU"
+        assert project.owner == "machuang"
+        assert project.model_file == ""
+        assert read_project(project.id, make_user()).id == project.id
+    finally:
+        PROJECTS.remove(project)
+
+
+def test_updating_unknown_project_returns_not_found() -> None:
+    with pytest.raises(HTTPException) as error:
+        update_project(
+            "missing",
+            ProjectUpdateRequest(name="New name"),
+            make_user(),
+        )
+
+    assert error.value.status_code == 404
 
 
 def test_read_task_endpoints() -> None:
     current_user = make_user()
+    model_task = TaskRead(
+        id="mg-test",
+        project_id="p-1001",
+        name="Test model task",
+        type="model-generation",
+        status="running",
+        progress=40,
+        updated_at="2026-08-02 20:00",
+    )
+    slicing_task = TaskRead(
+        id="sg-test",
+        project_id="p-1001",
+        name="Test slicing task",
+        type="slicing-gcode",
+        status="completed",
+        progress=100,
+        updated_at="2026-08-02 20:05",
+    )
+    TASKS.extend([model_task, slicing_task])
 
-    model_task = read_model_task("mg-2048", current_user)
-    slicing_task = read_slicing_task("sg-1024", current_user)
+    try:
+        model_response = read_model_task("mg-test", current_user)
+        slicing_response = read_slicing_task("sg-test", current_user)
+    finally:
+        TASKS.remove(model_task)
+        TASKS.remove(slicing_task)
 
-    assert model_task.type == "model-generation"
-    assert slicing_task.type == "slicing-gcode"
+    assert model_response.type == "model-generation"
+    assert slicing_response.type == "slicing-gcode"
+
+
+def test_dashboard_stats_reflect_real_task_list() -> None:
+    current_user = make_user()
+    TASKS.clear()
+
+    empty_stats = read_dashboard_stats(current_user)
+    assert empty_stats.running_tasks == 0
+    assert empty_stats.completed_tasks == 0
+
+    task = TaskRead(
+        id="sg-test",
+        project_id="p-1001",
+        name="Test slicing task",
+        type="slicing-gcode",
+        status="completed",
+        progress=100,
+        updated_at="2026-08-02 20:05",
+    )
+    TASKS.append(task)
+
+    try:
+        stats = read_dashboard_stats(current_user)
+    finally:
+        TASKS.remove(task)
+
+    assert stats.completed_tasks == 1
 
 
 def test_admin_endpoint_requires_admin_role() -> None:
@@ -115,6 +256,35 @@ def test_uploaded_models_persist_without_the_in_memory_file_index(
     assert {file.filename for file in saved_files} == {"first.stl", "Phone Holder.stl"}
     assert latest.filename == "Phone Holder.stl"
     assert Path(PROJECT_FILES["p-1001"]).exists()
+
+
+def test_saved_model_can_be_selected_as_current_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
+    current_user = make_user()
+
+    upload_project_file(
+        "p-1001",
+        current_user,
+        UploadFile(filename="first.stl", file=BytesIO(b"solid first")),
+    )
+    upload_project_file(
+        "p-1001",
+        current_user,
+        UploadFile(filename="second.stl", file=BytesIO(b"solid second")),
+    )
+
+    selected = select_latest_project_file(
+        "p-1001",
+        FileSelectionRequest(filename="first.stl"),
+        current_user,
+    )
+    latest = read_latest_project_file("p-1001", current_user)
+
+    assert selected.filename == "first.stl"
+    assert latest.filename == "first.stl"
 
 
 def test_project_file_management_lists_and_deletes_models_and_gcode(

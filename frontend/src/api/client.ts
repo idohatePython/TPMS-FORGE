@@ -39,10 +39,11 @@ export function normalizeApiError(error: unknown): ApiError {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status
     const data = error.response?.data as { detail?: string; message?: string; code?: string } | undefined
+    const timeoutMessage = error.code === 'ECONNABORTED' ? '计算超时，请降低模型复杂度后重试' : undefined
 
     return {
       status,
-      message: data?.detail ?? data?.message ?? error.message ?? '请求失败',
+      message: data?.detail ?? data?.message ?? timeoutMessage ?? error.message ?? '请求失败',
       code: data?.code,
     }
   }

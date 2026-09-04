@@ -11,7 +11,14 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True, validation_alias="APP_DEBUG")
     secret_key: str = "change-me"
     api_v1_prefix: str = "/api/v1"
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ]
 
     database_url: str = "postgresql+psycopg://tpms_forge:tpms_forge@localhost:5432/tpms_forge"
     redis_url: str = "redis://localhost:6379/0"
@@ -27,6 +34,8 @@ class Settings(BaseSettings):
     orca_machine_profile: Path | None = None
     orca_process_profile: Path | None = None
     orca_filament_profile: Path | None = None
+    orca_windows_work_dir: Path | None = None
+    vsp_slicer_path: Path | None = None
     prusa_slicer_path: str = "prusa-slicer"
     slicer_timeout_seconds: int = 300
 

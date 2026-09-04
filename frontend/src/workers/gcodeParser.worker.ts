@@ -298,7 +298,7 @@ export function parseGcode(gcode: string) {
     const lineNumber = index + 1
     const trimmedRaw = rawLine.trim()
 
-    if (/^;LAYER_CHANGE\b/i.test(trimmedRaw)) {
+    if (/^;LAYER_CHANGE\b/i.test(trimmedRaw) || /^;LAYER:\s*\d+/i.test(trimmedRaw)) {
       if (currentLayerData) {
         currentLayerData.endLine = lineNumber - 1
       }

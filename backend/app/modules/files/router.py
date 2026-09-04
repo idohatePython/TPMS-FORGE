@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -6,9 +7,14 @@ from fastapi.responses import FileResponse
 
 from backend.app.core.config import settings
 from backend.app.modules.auth.dependencies import get_current_user
-from backend.app.repositories.mock_data import PROJECT_FILES, PROJECT_GCODE_FILES, PROJECTS
+from backend.app.repositories.mock_data import (
+    PROJECT_FILES,
+    PROJECT_GCODE_FILES,
+    PROJECT_MODEL_TASK_FILES,
+    PROJECTS,
+)
 from backend.app.schemas.auth import UserRead
-from backend.app.schemas.projects import FileUploadRead
+from backend.app.schemas.projects import FileSelectionRequest, FileUploadRead
 from backend.app.services.storage import get_storage_service
 
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
@@ -23,7 +29,16 @@ def ensure_project_exists(project_id: str) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
 
-def to_file_read(project_id: str, path: Path) -> FileUploadRead:
+def _created_at(path: Path) -> str:
+    return datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="minutes")
+
+
+def _source_task(path: Path, registry: dict[str, str]) -> str | None:
+    return next((task_id for task_id, file_path in registry.items() if Path(file_path) == path), None)
+
+
+def to_file_read(project_id: str, path: Path, *, generated: bool = False) -> FileUploadRead:
+    created_at = datetime.fromtimestamp(path.stat().st_mtime)
     return FileUploadRead(
         project_id=project_id,
         filename=path.name,
@@ -31,6 +46,11 @@ def to_file_read(project_id: str, path: Path) -> FileUploadRead:
         size_bytes=path.stat().st_size,
         status="accepted",
         file_url=f"/api/v1/projects/{project_id}/files/{path.name}",
+        file_kind="generated_model" if generated else "uploaded_model",
+        source_task_id=_source_task(path, PROJECT_MODEL_TASK_FILES) if generated else None,
+        created_at=created_at.isoformat(timespec="minutes"),
+        temporary=not generated,
+        expires_at=(created_at + timedelta(hours=24)).isoformat(timespec="minutes") if not generated else None,
     )
 
 
@@ -42,6 +62,11 @@ def to_gcode_read(project_id: str, path: Path) -> FileUploadRead:
         size_bytes=path.stat().st_size,
         status="accepted",
         file_url=f"/api/v1/projects/{project_id}/files/gcodes/{path.name}",
+        file_kind="gcode",
+        source_task_id=_source_task(path, PROJECT_GCODE_FILES),
+        created_at=_created_at(path),
+        temporary=False,
+        expires_at=None,
     )
 
 
@@ -92,11 +117,16 @@ def list_project_files(
 ) -> list[FileUploadRead]:
     ensure_project_exists(project_id)
     storage = get_storage_service()
-    files = storage.list_input_files(current_user.id, project_id)
+    uploaded_files = storage.list_input_files(current_user.id, project_id)
+    generated_files = storage.list_generated_files(current_user.id, project_id)
     latest = storage.latest_input_file(current_user.id, project_id)
-    if latest is not None:
+    files = [*uploaded_files, *generated_files]
+    if latest is not None and latest in files:
         files = [latest, *(path for path in files if path != latest)]
-    return [to_file_read(project_id, path) for path in files]
+    return [
+        to_file_read(project_id, path, generated=path.parent.name == "generated")
+        for path in files
+    ]
 
 
 @router.get("/latest")
@@ -110,7 +140,30 @@ def read_latest_project_file(
     if path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
     PROJECT_FILES[project_id] = str(path)
-    return to_file_read(project_id, path)
+    return to_file_read(project_id, path, generated=path.parent.name == "generated")
+
+
+@router.post("/latest")
+def select_latest_project_file(
+    project_id: str,
+    payload: FileSelectionRequest,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+) -> FileUploadRead:
+    ensure_project_exists(project_id)
+    storage = get_storage_service()
+    filename = safe_filename(payload.filename)
+    path = storage.find_model_file(current_user.id, project_id, filename)
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
+
+    storage.set_latest_input_file(current_user.id, project_id, path.name)
+    PROJECT_FILES[project_id] = str(path)
+
+    for project in PROJECTS:
+        if project.id == project_id:
+            project.model_file = path.name
+
+    return to_file_read(project_id, path, generated=path.parent.name == "generated")
 
 
 @router.get("/gcodes")
@@ -165,7 +218,7 @@ def download_project_file(
     _current_user: Annotated[UserRead, Depends(get_current_user)],
 ) -> FileResponse:
     ensure_project_exists(project_id)
-    path = get_storage_service().find_input_file(
+    path = get_storage_service().find_model_file(
         _current_user.id,
         project_id,
         safe_filename(filename),
@@ -184,11 +237,19 @@ def delete_project_file(
 ) -> Response:
     ensure_project_exists(project_id)
     storage = get_storage_service()
-    path = storage.find_input_file(current_user.id, project_id, safe_filename(filename))
+    path = storage.find_model_file(current_user.id, project_id, safe_filename(filename))
     if path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project file not found")
 
-    next_file = storage.delete_input_file(current_user.id, project_id, path.name)
+    if path.parent.name == "generated":
+        path.unlink()
+        for task_id, file_path in list(PROJECT_MODEL_TASK_FILES.items()):
+            if Path(file_path) == path:
+                del PROJECT_MODEL_TASK_FILES[task_id]
+        selected = storage.latest_input_file(current_user.id, project_id)
+        next_file = selected if selected != path else None
+    else:
+        next_file = storage.delete_input_file(current_user.id, project_id, path.name)
     if next_file is None:
         PROJECT_FILES.pop(project_id, None)
     else:

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 UserRole = Literal["user", "admin"]
 
@@ -12,9 +12,10 @@ class UserRead(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=64)
-    password: str = Field(default="", max_length=128)
-    role: UserRole = "user"
+    model_config = ConfigDict(extra="forbid")
+
+    identifier: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class TokenResponse(BaseModel):

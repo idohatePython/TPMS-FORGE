@@ -18,6 +18,11 @@ export interface ForgeTask {
   status: TaskStatus
   progress: number
   updatedAt: string
+  stage: string | null
+  errorMessage: string | null
+  inputFilename: string | null
+  intermediateFilename: string | null
+  outputFilename: string | null
 }
 
 export interface DashboardStats {

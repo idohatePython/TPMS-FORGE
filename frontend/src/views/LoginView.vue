@@ -1,24 +1,68 @@
 <template>
-  <main class="section">
-    <div class="section-inner" style="max-width: 460px">
-      <NCard title="登录 TPMS-FORGE" :bordered="false">
+  <main class="section login-page">
+    <div class="section-inner login-container">
+      <NCard :bordered="false" class="login-card">
+        <div class="login-heading">
+          <span class="brand-mark">TF</span>
+          <div>
+            <p class="eyebrow">TPMS-FORGE</p>
+            <h1>登录工作台</h1>
+            <p>使用用户名或邮箱登录，继续管理模型、TPMS 任务与切片结果。</p>
+          </div>
+        </div>
+
         <NForm label-placement="top" @submit.prevent="submit">
-          <NFormItem label="用户名">
-            <NInput v-model:value="username" placeholder="researcher" />
+          <NFormItem
+            label="用户名或邮箱"
+            :validation-status="identifierError ? 'error' : undefined"
+            :feedback="identifierError"
+          >
+            <NInput
+              v-model:value="identifier"
+              placeholder="请输入用户名或邮箱"
+              autocomplete="username"
+              clearable
+              @update:value="identifierError = ''"
+            />
           </NFormItem>
-          <NFormItem label="密码">
-            <NInput v-model:value="password" type="password" placeholder="开发期可输入任意密码" />
+
+          <NFormItem
+            label="密码"
+            :validation-status="passwordError ? 'error' : undefined"
+            :feedback="passwordError"
+          >
+            <NInput
+              v-model:value="password"
+              type="password"
+              show-password-on="click"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+              @update:value="passwordError = ''"
+            />
           </NFormItem>
-          <NFormItem label="角色">
-            <NRadioGroup v-model:value="role">
-              <NRadioButton v-for="option in roleOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </NRadioButton>
-            </NRadioGroup>
-          </NFormItem>
-          <NAlert v-if="errorMessage" type="error" :title="errorMessage" style="margin-bottom: 16px" />
-          <NButton type="primary" block attr-type="submit" :loading="auth.loading">进入工作台</NButton>
+
+          <NAlert
+            v-if="errorMessage"
+            type="error"
+            :title="errorMessage"
+            class="login-alert"
+          />
+
+          <NButton
+            type="primary"
+            block
+            attr-type="submit"
+            :loading="auth.loading"
+            :disabled="auth.loading"
+          >
+            登录
+          </NButton>
         </NForm>
+
+        <div class="login-footer">
+          <NButton text @click="router.push('/')">返回首页</NButton>
+          <span>账号由管理员创建</span>
+        </div>
       </NCard>
     </div>
   </main>
@@ -26,32 +70,60 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NAlert, NButton, NCard, NForm, NFormItem, NInput, NRadioButton, NRadioGroup } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NForm,
+  NFormItem,
+  NInput,
+} from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
 
-import { useAuthStore, type UserRole } from '@/stores/auth'
 import { normalizeApiError } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const username = ref('researcher')
+const identifier = ref('')
 const password = ref('')
-const role = ref<UserRole>('user')
+const identifierError = ref('')
+const passwordError = ref('')
 const errorMessage = ref('')
-const roleOptions = [
-  { label: '用户', value: 'user' },
-  { label: '管理员', value: 'admin' },
-]
+
+function validateForm() {
+  identifierError.value = ''
+  passwordError.value = ''
+
+  if (!identifier.value.trim()) {
+    identifierError.value = '请输入用户名或邮箱'
+  }
+
+  if (!password.value) {
+    passwordError.value = '请输入密码'
+  }
+
+  return !identifierError.value && !passwordError.value
+}
 
 async function submit() {
   errorMessage.value = ''
 
+  if (!validateForm()) {
+    return
+  }
+
   try {
-    await auth.login(username.value, password.value, role.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
-    router.push(redirect)
+    await auth.login(identifier.value, password.value)
+
+    const redirect =
+      typeof route.query.redirect === 'string'
+        ? route.query.redirect
+        : '/dashboard'
+
+    await router.push(redirect)
   } catch (error) {
     errorMessage.value = normalizeApiError(error).message
   }
